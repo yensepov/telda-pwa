@@ -94,6 +94,7 @@ export default function TeldA() {
   const [gps, setGps] = useState("off");
   const [gpsAcc, setGpsAcc] = useState(null);
   const [gpsSpd, setGpsSpd] = useState(null);
+  const [gpsDist2Cam, setGpsDist2Cam] = useState(null);
   const [started, setStarted] = useState(false);
   const [wakeLock, setWakeLockState] = useState(false);
 
@@ -172,7 +173,7 @@ export default function TeldA() {
     setDone(p => [...p, c]);
     if (idx < segments.length - 1) {
       setIdx(p => p + 1);
-      setElapsed(0); setDist(0); setAvg(0);
+      setElapsed(0); setDist(0); setAvg(0); setGpsDist2Cam(null);
       gpsDist.current = 0;
       setStarted(true);
     } else {
@@ -202,10 +203,13 @@ export default function TeldA() {
         }
         lastPos.current = { lat, lon };
 
+        // Real distance to next camera
+        const distToEnd = haversine(lat, lon, seg.lat2, seg.lon2);
+        setGpsDist2Cam(distToEnd);
+
         // Check end camera
         if (started) {
-          const dEnd = haversine(lat, lon, seg.lat2, seg.lon2);
-          if (dEnd < CAM_RADIUS) completeSeg();
+          if (distToEnd < CAM_RADIUS) completeSeg();
         }
 
         // Check start camera
@@ -265,7 +269,7 @@ export default function TeldA() {
 
   const reset = () => {
     setSimOn(false); stopGPS(); relWL(); setScreen("start");
-    setIdx(0); setElapsed(0); setDist(0); setAvg(0); setDone([]); setStarted(false);
+    setIdx(0); setElapsed(0); setDist(0); setAvg(0); setDone([]); setStarted(false); setGpsDist2Cam(null);
   };
 
   // ═══ START ═══
@@ -456,7 +460,7 @@ export default function TeldA() {
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "6px", padding: "8px 14px" }}>
         {[
           { l: "Запас", v: elapsed > 0 ? fmtDelta(delta) : "—", c: elapsed > 0 ? (delta >= 0 ? C.safe : C.danger) : C.textDim },
-          { l: "До камеры", v: remain.toFixed(1), u: "км", c: C.accent },
+          { l: "До камеры", v: mode === "gps" && gpsDist2Cam != null ? (gpsDist2Cam < 1 ? (gpsDist2Cam * 1000).toFixed(0) + " м" : gpsDist2Cam.toFixed(1)) : remain.toFixed(1), u: mode === "gps" && gpsDist2Cam != null && gpsDist2Cam >= 1 ? "км" : (mode === "gps" && gpsDist2Cam != null ? "" : "км"), c: C.accent },
           { l: "Время", v: fmtTime(elapsed), c: C.text },
         ].map((s, i) => (
           <div key={i} style={{ background: C.surface, borderRadius: "12px", padding: "11px 8px", textAlign: "center", border: `1px solid ${C.border}` }}>
