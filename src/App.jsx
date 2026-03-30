@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 
 // ═══════════════════════════════════════════════════════════════
-// TeldA v3 — Контроль средней скорости | Алматы ↔ Шымкент
+// TeldA v4 — Контроль средней скорости | Трассы Казахстана
 // Telegram Mini App + PWA
 // Симулятор скрыт: 5 быстрых тапов по логотипу TeldA
 // ═══════════════════════════════════════════════════════════════
@@ -13,7 +13,8 @@ if (tg) {
   tg.disableVerticalSwipes();
 }
 
-const SEGMENTS_FORWARD = [
+// ─── Трасса: Алматы ↔ Шымкент ───
+const ROUTE_ALMATY_SHYMKENT = [
   { from: "Алматы", to: "Кайнар", km: 237, lat1: 43.238, lon1: 76.946, lat2: 43.516, lon2: 75.093 },
   { from: "Кайнар", to: "Ахтоган", km: 112, lat1: 43.516, lon1: 75.093, lat2: 43.182, lon2: 74.724 },
   { from: "Ахтоган", to: "Луговое", km: 31, lat1: 43.182, lon1: 74.724, lat2: 43.122, lon2: 74.637 },
@@ -30,11 +31,28 @@ const SEGMENTS_FORWARD = [
   { from: "Староикан", to: "Шымкент", km: 32, lat1: 42.190, lon1: 69.350, lat2: 42.340, lon2: 69.520 },
 ];
 
+// ─── Трасса: Шымкент ↔ Кызылорда ───
+const ROUTE_SHYMKENT_KYZYLORDA = [
+  { from: "Телемост", to: "Темирлан", km: 16, lat1: 42.5528, lon1: 69.3191, lat2: 42.6564, lon2: 69.2335 },
+  { from: "Темирлан", to: "Жиенкум", km: 34, lat1: 42.6564, lon1: 69.2335, lat2: 42.8854, lon2: 69.0217 },
+  { from: "Жиенкум", to: "Староикан", km: 62, lat1: 42.8854, lon1: 69.0217, lat2: 43.2287, lon2: 68.4436 },
+  { from: "Староикан", to: "Туркестан", km: 32, lat1: 43.2287, lon1: 68.4436, lat2: 43.3533, lon2: 68.1433 },
+  { from: "Туркестан", to: "Беш-Арык", km: 35, lat1: 43.3533, lon1: 68.1433, lat2: 43.5270, lon2: 67.7909 },
+  { from: "Беш-Арык", to: "Сунаката", km: 98, lat1: 43.5270, lon1: 67.7909, lat2: 44.1375, lon2: 66.9689 },
+  { from: "Сунаката", to: "Байгекум", km: 47, lat1: 44.1375, lon1: 66.9689, lat2: 44.3082, lon2: 66.4956 },
+  { from: "Байгекум", to: "Бирказан", km: 87, lat1: 44.3082, lon1: 66.4956, lat2: 44.8081, lon2: 65.6776 },
+];
+
+const ROUTES = {
+  "almaty-shymkent": { name: "Алматы ↔ Шымкент", segments: ROUTE_ALMATY_SHYMKENT, cityA: "Алматы", cityB: "Шымкент" },
+  "shymkent-kyzylorda": { name: "Шымкент ↔ Кызылорда", segments: ROUTE_SHYMKENT_KYZYLORDA, cityA: "Шымкент", cityB: "Кызылорда" },
+};
+
 const SPEED_LIMIT = 110;
 const CAM_RADIUS = 0.4; // km
 
-const getSegmentsReverse = () =>
-  [...SEGMENTS_FORWARD].reverse().map(s => ({
+const getSegmentsReverse = (segs) =>
+  [...segs].reverse().map(s => ({
     ...s, from: s.to, to: s.from,
     lat1: s.lat2, lon1: s.lon2, lat2: s.lat1, lon2: s.lon1,
   }));
@@ -63,8 +81,9 @@ export default function TeldA() {
   const [screen, setScreen] = useState("start");
   const [mode, setMode] = useState("gps");
   const [devMode, setDevMode] = useState(false);
+  const [routeKey, setRouteKey] = useState("almaty-shymkent");
   const [direction, setDirection] = useState("forward");
-  const [segments, setSegments] = useState(SEGMENTS_FORWARD);
+  const [segments, setSegments] = useState(ROUTE_ALMATY_SHYMKENT);
   const [idx, setIdx] = useState(0);
   const [elapsed, setElapsed] = useState(0);
   const [dist, setDist] = useState(0);
@@ -236,7 +255,8 @@ export default function TeldA() {
   }, [screen]);
 
   const startDriving = (m) => {
-    const segs = direction === "forward" ? SEGMENTS_FORWARD : getSegmentsReverse();
+    const route = ROUTES[routeKey];
+    const segs = direction === "forward" ? route.segments : getSegmentsReverse(route.segments);
     setSegments(segs); setMode(m); setIdx(0); setElapsed(0); setDist(0); setAvg(0);
     setDone([]); setSimOn(false); setStarted(m === "sim"); gpsDist.current = 0;
     lastPos.current = null; setScreen("driving");
@@ -250,7 +270,8 @@ export default function TeldA() {
 
   // ═══ START ═══
   if (screen === "start") {
-    const segs = direction === "forward" ? SEGMENTS_FORWARD : getSegmentsReverse();
+    const route = ROUTES[routeKey];
+    const segs = direction === "forward" ? route.segments : getSegmentsReverse(route.segments);
     const tot = segs.reduce((a, s) => a + s.km, 0);
     return (
       <div style={{ background: C.bg, minHeight: "100vh", color: C.text, fontFamily: "'JetBrains Mono','SF Mono','Fira Code',monospace" }}>
@@ -265,9 +286,29 @@ export default function TeldA() {
           </div>
         </div>
 
+        {/* Выбор трассы */}
+        <div style={{ padding: "0 20px", marginBottom: "10px" }}>
+          <div style={{ fontSize: "10px", color: C.textDim, textTransform: "uppercase", letterSpacing: "2px", marginBottom: "6px", paddingLeft: "4px" }}>Трасса</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+            {Object.entries(ROUTES).map(([key, r]) => (
+              <button key={key} onClick={() => { setRouteKey(key); setDirection("forward"); }} style={{
+                width: "100%", padding: "14px 16px", borderRadius: "12px", border: routeKey === key ? `2px solid ${C.accent}` : `1px solid ${C.border}`,
+                fontSize: "13px", fontWeight: 700, fontFamily: "inherit", cursor: "pointer", textAlign: "left",
+                background: routeKey === key ? C.accentDim : C.surface, color: routeKey === key ? C.accent : C.textDim,
+              }}>
+                {r.name}
+                <span style={{ float: "right", fontSize: "11px", fontWeight: 500, opacity: 0.7 }}>
+                  {r.segments.length} уч. • {r.segments.reduce((a, s) => a + s.km, 0)} км
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Направление */}
         <div style={{ padding: "0 20px", marginBottom: "16px" }}>
           <div style={{ display: "flex", gap: "6px", background: C.surface, borderRadius: "12px", padding: "3px", border: `1px solid ${C.border}` }}>
-            {[{ k: "forward", l: "Алматы → Шымкент" }, { k: "reverse", l: "Шымкент → Алматы" }].map(d => (
+            {[{ k: "forward", l: `${route.cityA} → ${route.cityB}` }, { k: "reverse", l: `${route.cityB} → ${route.cityA}` }].map(d => (
               <button key={d.k} onClick={() => setDirection(d.k)} style={{
                 flex: 1, padding: "12px 6px", borderRadius: "10px", border: "none", fontSize: "12px", fontWeight: 600,
                 fontFamily: "inherit", cursor: "pointer",
